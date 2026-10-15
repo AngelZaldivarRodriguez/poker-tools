@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Fronteras 6-max</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one 13x13 matrix as the hero, shaded by the earliest seat that opens each hand; seat selector above, frontier table below. */
+:root{
+  --bg:#f5f6f9; --surface:#ffffff; --fg:#161a2b; --muted:#5d6378; --line:#dfe2ea;
+  --accent:#d4831a;
+  --t1:#3d1d72; --t2:#2457b5; --t3:#0f8a80; --t4:#4fae3e; --t5:#f0c93a; --t0:#e9ebf1;
+  --t1f:#ffffff; --t2f:#ffffff; --t3f:#ffffff; --t4f:#0f240b; --t5f:#2b2200; --t0f:#9aa0b2;
+  --go:#1f8a52; --gof:#ffffff;
+  --b1:#b3261e; --b2:#e07b1f; --b3:#f2c94c; --b1f:#ffffff; --b2f:#2a1300; --b3f:#2a2000;
+  --display:"Archivo",system-ui,sans-serif; --body:"Archivo",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1119; --surface:#171a25; --fg:#e7e9f2; --muted:#9298ad; --line:#2a2e3d; --accent:#f0a33a;
+  --t1:#8a63e0; --t2:#3f7be0; --t3:#1fb3a4; --t4:#78cf63; --t5:#f5d45a; --t0:#1c1f2b;
+  --t1f:#ffffff; --t2f:#ffffff; --t3f:#04211e; --t4f:#0d2209; --t5f:#2b2200; --t0f:#555b70;
+  --go:#3fbf78; --gof:#062314;
+  --b1:#e5534b; --b2:#f0943e; --b3:#f5d45a; --b1f:#ffffff; --b2f:#2a1300; --b3f:#2a2000; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1119; --surface:#171a25; --fg:#e7e9f2; --muted:#9298ad; --line:#2a2e3d; --accent:#f0a33a;
+  --t1:#8a63e0; --t2:#3f7be0; --t3:#1fb3a4; --t4:#78cf63; --t5:#f5d45a; --t0:#1c1f2b;
+  --t1f:#ffffff; --t2f:#ffffff; --t3f:#04211e; --t4f:#0d2209; --t5f:#2b2200; --t0f:#555b70;
+  --go:#3fbf78; --gof:#062314;
+  --b1:#e5534b; --b2:#f0943e; --b3:#f5d45a; --b1f:#ffffff; --b2f:#2a1300; --b3f:#2a2000; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:grid;gap:28px}
+h1{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:clamp(30px,6vw,44px);line-height:1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--display);font-stretch:85%;font-weight:700;font-size:20px;margin:0 0 10px;text-wrap:balance}
+.lede{color:var(--muted);margin:8px 0 0;max-width:62ch}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.seats{display:flex;flex-wrap:wrap;gap:6px}
+.seat{font:600 13px var(--mono);padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;display:flex;align-items:center;gap:8px}
+.seat .sw{width:12px;height:12px;border-radius:3px;border:1px solid var(--line)}
+.seat .pct{color:var(--muted);font-weight:500}
+.seat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.seat:focus-visible,.cell:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.board{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:12px}
+.grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px}
+.cell{aspect-ratio:1;max-width:100%;border:0;border-radius:4px;font:600 clamp(8px,2.3vw,12px)/1 var(--mono);cursor:pointer;padding:0;display:grid;place-items:center;transition:opacity .15s,transform .15s}
+.cell.dim{opacity:.18}
+.cell.sel{outline:2px solid var(--accent);outline-offset:1px;z-index:1}
+.info{font-family:var(--mono);font-size:13px;min-height:1.5em;color:var(--fg)}
+.info b{color:var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+.rules{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.rules li{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:start}
+.rules .n{font:700 13px var(--mono);color:var(--accent);padding-top:2px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tbody th{font-family:var(--mono);font-weight:700}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr:last-child td,tr:last-child th{border-bottom:0}
+.note{font-size:13px;color:var(--muted);margin:0;max-width:65ch}
+.fcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.fcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;min-width:0}
+.fcard header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fcard h3{margin:0;font:800 18px var(--display);font-stretch:80%;display:flex;align-items:center;gap:8px}
+.fcard h3 i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.fcard .pc{font:500 12px var(--mono);color:var(--muted)}
+.fcard dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.fcard dt{color:var(--muted)}
+.fcard dd{margin:0;font-family:var(--mono);font-weight:600;min-width:0;overflow-wrap:anywhere}
+.agg .fcard h3{font-size:16px}
+.agg .fcard dd{font-weight:500}
+.agg .fcard dt{font-weight:600;color:var(--fg)}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;overflow-x:auto;scrollbar-width:none;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.tabs button{flex:1 0 auto;white-space:nowrap;font:700 13px var(--display);font-stretch:90%;padding:10px 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--t2);color:var(--t2f)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.panel{display:grid;gap:28px}
+.panel[hidden]{display:none}
+.tips{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.tip{display:grid;grid-template-columns:36px 1fr;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.tip .tn{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:800 15px var(--mono);background:var(--t2);color:var(--t2f)}
+.tip h3{margin:2px 0 4px;font:800 17px var(--display);font-stretch:85%}
+.tip p{margin:0;font-size:14px}
+.tip .ev{margin-top:6px;font-size:13px;color:var(--muted);border-left:3px solid var(--accent);padding-left:8px}
+.tag{display:inline-block;font:700 10px var(--mono);letter-spacing:.06em;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px;margin-right:6px;vertical-align:1px}
+.quads{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.quad{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.quad h3{margin:0 0 8px;font:800 16px var(--display);font-stretch:85%}
+.quad ul{margin:0;padding-left:18px;display:grid;gap:8px;font-size:14px}
+.quad .adj{display:block;margin-top:4px;padding:6px 8px;border-radius:6px;background:var(--t0);font-size:13px}
+table.narrow{min-width:0}
+table.narrow th,table.narrow td{white-space:nowrap}
+.panel[data-panel="lectura"] table{min-width:560px}
+.panel[data-panel="lectura"] td{white-space:normal;font-family:var(--body);vertical-align:top}
+.panel[data-panel="lectura"] td:nth-child(2){font-family:var(--mono);font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.cell{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button role="tab" type="button" data-tab="claves">Claves</button>
+    <button role="tab" type="button" data-tab="preflop">Preflop</button>
+    <button role="tab" type="button" data-tab="tresbet">3-bet</button>
+    <button role="tab" type="button" data-tab="postflop">Postflop</button>
+    <button role="tab" type="button" data-tab="mates">Mates</button>
+    <button role="tab" type="button" data-tab="lectura">Lectura</button>
+    <button role="tab" type="button" data-tab="aof">AoF</button>
+  </nav>
+
+  <div class="panel" data-panel="preflop">
+  <header>
+    <div class="eyebrow">Cash 6-max · 100bb · open 2.5bb (SB 3bb)</div>
+    <h1>Fronteras de apertura</h1>
+    <p class="lede">Cada mano está pintada con el primer asiento desde el que se abre. Si una mano se abre en UTG, también se abre en todos los demás. Toca un asiento para ver solo su rango, o toca una mano para ver desde dónde entra.</p>
+  </header>
+
+  <section class="board" aria-label="Matriz de manos">
+    <div class="seats" role="group" aria-label="Asiento" id="seats"></div>
+    <div class="grid" id="grid"></div>
+    <div class="info" id="info" aria-live="polite">Toca una mano.</div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h2>Las tres reglas</h2>
+    <ul class="rules">
+      <li><span class="n">1</span><span>Todos los pares (22+) se abren desde cualquier asiento.</span></li>
+      <li><span class="n">2</span><span>Ases suited: todos, excepto en UTG, donde solo ATs+ y A5s–A2s. A9s–A6s se tiran en UTG.</span></li>
+      <li><span class="n">3</span><span>Los rangos están anidados: UTG ⊂ HJ ⊂ CO ⊂ SB ⊂ BTN. Cada asiento es el anterior más un escalón.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Dónde se corta cada fila</h2>
+    <p class="note" style="margin-bottom:12px">La mano más baja que todavía se abre en cada fila. Pares y ases suited siguen las reglas de arriba.</p>
+    <div class="fcards" id="fcards"></div>
+  </section>
+
+  <section>
+    <h2>Contra agresión</h2>
+    <p class="note" style="margin-bottom:12px">Reglas simples para NL2–NL5 con 100bb. En estos límites, un 3-bet o un 4-bet casi siempre es una mano fuerte, no un farol.</p>
+    <div class="fcards agg">
+      <article class="fcard"><header><h3>Te hacen 3-bet</h3><span class="pc">tú abriste</span></header><dl>
+        <dt>4-bet</dt><dd>QQ+, AK · a 2.2× el 3-bet</dd>
+        <dt>Call en posición</dt><dd>JJ–22, AQs, AJs, KQs, conectores suited</dd>
+        <dt>Call fuera de pos.</dt><dd>JJ–TT, AQs</dd>
+        <dt>Fold</dt><dd>Todo lo demás, incluso AJo, KQo, ATo</dd>
+      </dl></article>
+      <article class="fcard"><header><h3>Tú haces 3-bet</h3><span class="pc">3× IP · 4× OOP</span></header><dl>
+        <dt>Valor</dt><dd>QQ+, AK</dd>
+        <dt>Contra loose</dt><dd>+ JJ, TT, AQ</dd>
+        <dt>Farol</dt><dd>Casi nunca. Si acaso A5s–A2s contra robo de CO o BTN</dd>
+      </dl></article>
+      <article class="fcard"><header><h3>Squeeze</h3><span class="pc">open + call antes de ti</span></header><dl>
+        <dt>Tamaño</dt><dd>4× el open + 1 open por cada caller</dd>
+        <dt>Valor</dt><dd>QQ+, AK</dd>
+        <dt>Contra flojos</dt><dd>+ JJ, AQs</dd>
+        <dt>Call</dt><dd>Pares chicos y suited buenos, solo si es barato</dd>
+        <dt>Fold</dt><dd>Lo demás</dd>
+      </dl></article>
+      <article class="fcard"><header><h3>4-bet o all-in</h3><span class="pc">te lo hacen a ti</span></header><dl>
+        <dt>All-in</dt><dd>KK+ siempre</dd>
+        <dt>All-in casi siempre</dt><dd>QQ, AK · fold solo contra un nit evidente</dd>
+        <dt>Fold</dt><dd>JJ, AQ y todo lo demás</dd>
+      </dl></article>
+      <article class="fcard"><header><h3>Hay limpers</h3><span class="pc">iso-raise</span></header><dl>
+        <dt>Tamaño</dt><dd>4bb + 1bb por cada limper</dd>
+        <dt>Rango</dt><dd>Como el del CO, sin la basura offsuit</dd>
+        <dt>Postflop</dt><dd>Apuesta por valor: pagan de más</dd>
+      </dl></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Qué estudiar en orden</h2>
+    <ul class="rules">
+      <li><span class="n">1</span><span>Aperturas (esta página).</span></li>
+      <li><span class="n">2</span><span>Defensa desde la BB. Es donde más dinero se pierde.</span></li>
+      <li><span class="n">3</span><span>Responder a un 3-bet.</span></li>
+      <li><span class="n">4</span><span>Tus propios 3-bets.</span></li>
+      <li><span class="n">5</span><span>4-bet, squeeze y all-in: las reglas de arriba te bastan por meses.</span></li>
+    </ul>
+  </section>
+
+  <p class="note">Rangos simplificados de Poker Skill (pokerskill.com/charts/preflop), una acción por mano. Solo cubren el pot sin abrir; contra un open o un 3-bet usa otros charts.</p>
+  </div>
+
+  <div class="panel" data-panel="tresbet" hidden>
+    <header>
+      <div class="eyebrow">Alguien abrió antes que tú</div>
+      <h1>3-bet, call o fold</h1>
+      <p class="lede">Elige dónde estás y quién abrió. Rojo es 3-bet, verde es call y gris es fold.</p>
+    </header>
+    <section class="board" aria-label="Matriz contra un open">
+      <div><div class="eyebrow" style="margin-bottom:6px">Tú estás en</div><div class="seats" role="group" aria-label="Tu posición" id="heroPos"></div></div>
+      <div><div class="eyebrow" style="margin-bottom:6px">Abrió</div><div class="seats" role="group" aria-label="Quién abrió" id="villPos"></div></div>
+      <div class="grid" id="grid3"></div>
+      <div class="info" id="info3" aria-live="polite">Toca una mano.</div>
+      <div class="legend" id="legend3"></div>
+    </section>
+    <div class="fcards" id="spotCard"></div>
+    <ul class="rules">
+      <li><span class="n">!</span><span>Tamaño del 3-bet: 3× el open si tienes posición (BTN, CO); 4× si no (SB, BB). Si hay callers, suma 1 open por cada uno.</span></li>
+      <li><span class="n">!</span><span>Si te hacen 4-bet: all-in con KK+, AK y QQ contra casi todos. JJ solo contra agresivos. Lo demás fold.</span></li>
+      <li><span class="n">!</span><span>Contra un fish que paga todo: 3-bet solo por valor, pero más amplio (JJ, TT, AQ). Contra un nit: aprieta todo.</span></li>
+    </ul>
+  </div>
+
+  <div class="panel" data-panel="claves" hidden>
+    <header>
+      <div class="eyebrow">NL2 · NL5 · NL10</div>
+      <h1>Lo que más dinero deja</h1>
+      <p class="lede">En estos límites no ganas jugando perfecto. Ganas cobrándole a los errores de los demás y cometiendo menos los tuyos. Están en orden de cuánto dinero valen.</p>
+    </header>
+    <ol class="tips" id="tips"></ol>
+  </div>
+
+  <div class="panel" data-panel="postflop" hidden>
+    <header>
+      <div class="eyebrow">Tus notas de Zeros · ajustadas a NL2</div>
+      <h1>Postflop por situación</h1>
+      <p class="lede">Iniciativa = fuiste el último en subir preflop. Las líneas marcadas <span class="tag">NL2</span> cambian contra rivales que pagan de más y farolean de menos.</p>
+    </header>
+    <div class="quads">
+      <article class="quad">
+        <h3>Con iniciativa · con posición</h3>
+        <ul>
+          <li>C-bet de 33% en el flop.</li>
+          <li>Proyecto de color medio contra check-raise en el flop (puede estar jugando lento un full): check en el turn.</li>
+          <li>Proyectos peores que gutshot a pareja media: check en el turn.</li>
+          <li>Con gutshot puedes volver a apostar el turn en cualquier board ofensivo.</li>
+          <li>Combo draw fuerte (15 outs, color al A o K): apuesta fuerte en el flop para ir all-in en el turn.</li>
+          <li>Si el color se completa en el river, no farolees sin bloquear el color. Si lo tienes, puedes ir all-in.</li>
+          <li>Overbet en el turn con proyectos de color fuertes solo con SPR profundo; con SPR chico te pueden meter all-in. <span class="adj"><span class="tag">NL2</span>Úsalo poco: contra calling stations los faroles grandes no funcionan.</span></li>
+          <li>Completas las nuts en el turn con SPR 1.5–1.7: tu nota dice check para inducir. <span class="adj"><span class="tag">NL2</span>Apuesta. El fish no te va a apostar, pero sí te va a pagar.</span></li>
+        </ul>
+      </article>
+      <article class="quad">
+        <h3>Con iniciativa · sin posición</h3>
+        <ul>
+          <li>Fuera de posición apuesta menos en el flop (25–33%): el rival paga con ~10% más manos.</li>
+          <li>AK, AQ, AT, 55, 77: c-bet de 33%, y tus proyectos al mismo tamaño.</li>
+          <li>Proyectos no muy fuertes pueden farolear el flop para tirar K5, A5, Q2. Check-call también está bien.</li>
+          <li>Inclínate al check en boards defensivos: ahí no haces foldear al rival.</li>
+          <li>Boards ofensivos sí, pero cuida qué tan temprano abrió el rival.</li>
+          <li>Board monocolor: check-call con proyectos de color medios. Board bajo de 3 cartas conectadas: check.</li>
+          <li>Turn: si tu farol no mejoró, check. Sigue apostando con manos decentes y faroles con buena equity, en tamaño chico para no perder la iniciativa.</li>
+          <li>Carta alta en el turn después de check en el flop en board defensivo: buena para apostar.</li>
+          <li>River: valor fino de 30%; si llegan al river con Ax, tu 55 gana.</li>
+          <li>River agresivo (~75%) si no bloqueas los faroles o colores principales. Doble check: farolea el river. <span class="adj"><span class="tag">NL2</span>Agresivo por valor, sí. Por farol, poco y chico: el doble check suele ser una pareja que paga.</span></li>
+        </ul>
+      </article>
+      <article class="quad">
+        <h3>Sin iniciativa · con posición</h3>
+        <ul>
+          <li>Si el rival checkea el flop (mano media o slowplay), recupera la iniciativa atacando el bote.</li>
+          <li>Apuesta por protección en el flop: 44, 55, 66, algunos 7x, y todos tus 9x en 9-7-3.</li>
+          <li>Sigue apostando el turn con proyectos de 8+ outs. Si cae un A, check: ayuda al rival.</li>
+          <li>Tus Ax fuertes en boards ofensivos: check en el flop, call, check behind en el turn y ve si ganas.</li>
+          <li>Paga el turn con 8+ outs. Overbet si pinchaste tu combo draw en el turn.</li>
+          <li>Si el color se completa en el turn: check-fold, salvo nuts o segundas nuts.</li>
+          <li>Con SPR de 2 o menos en el turn, si un all-in del rival te deja incómodo, check en el turn.</li>
+          <li>Farol all-in en el river con SPR ≤2 solo si turn y river le pegan a tu rango.</li>
+          <li>Si el river dobla carta y crees que tiene pareja, no farolees por nada: nadie se tira de dobles parejas.</li>
+          <li>Bote de 4-bet: con 8+ outs, all-in.</li>
+        </ul>
+      </article>
+      <article class="quad">
+        <h3>Sin iniciativa · sin posición</h3>
+        <ul>
+          <li>SPR de 3 o menos: check-push en el flop.</li>
+          <li>Valor de showdown + proyecto de color: check-call flop y turn, y punkea el river si el rival es malo.</li>
+          <li>Proyecto con valor de showdown: puede pagar el turn.</li>
+          <li>Gutshot: check-call y luego all-in del rival = fold. Check-call, call y all-in de farol solo si el board no es tan ofensivo.</li>
+          <li>Si el rival checkea el turn, farolea el river al tamaño de tus value bets (pareja 33%, dobles 75%). Necesitas una carta que te dé credibilidad. <span class="adj"><span class="tag">NL2</span>Menos seguido: en NL2 pagan de más.</span></li>
+          <li>Manos fuertes: call en el flop para que te siga faroleando. <span class="adj"><span class="tag">NL2</span>Solo contra agresivos. Contra pasivos, sube por valor.</span></li>
+        </ul>
+      </article>
+    </div>
+    <p class="note"><strong>Regla general para NL2:</strong> apuesta más grande con tus manos buenas, farolea menos y casi no hagas slowplay.</p>
+  </div>
+
+  <div class="panel" data-panel="mates" hidden>
+    <header>
+      <div class="eyebrow">Tus tablas · verificadas</div>
+      <h1>Pot odds y outs</h1>
+      <p class="lede">Atajo: outs × 2 = % para una carta. Outs × 4 = % del flop al river si vas a ver las dos cartas.</p>
+    </header>
+    <section>
+      <h2>Equity que necesitas para pagar</h2>
+      <div class="tbl"><table class="narrow">
+        <thead><tr><th>Apuesta (% del bote)</th><th>Equity necesaria</th></tr></thead>
+        <tbody id="potodds"></tbody>
+      </table></div>
+    </section>
+    <section>
+      <h2>Outs por proyecto</h2>
+      <div class="tbl"><table class="narrow">
+        <thead><tr><th>Proyecto</th><th>Outs</th></tr></thead>
+        <tbody>
+          <tr><td>Gutshot</td><td>4</td></tr>
+          <tr><td>Escalera abierta</td><td>8</td></tr>
+          <tr><td>Color</td><td>9</td></tr>
+          <tr><td>Color + gutshot</td><td>12</td></tr>
+          <tr><td>Color + escalera abierta</td><td>15</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <section>
+      <h2>Probabilidad de ligar</h2>
+      <div class="tbl"><table class="narrow">
+        <thead><tr><th>Outs</th><th>Flop → turn</th><th>Turn → river</th><th>Flop → river</th></tr></thead>
+        <tbody id="outs"></tbody>
+      </table></div>
+      <p class="note" style="margin-top:8px">Calculado exacto (47 y 46 cartas desconocidas). Corregí 4 valores de tu libreta: 1 out y 6 outs flop→river, 10 outs flop→river y 15 outs flop→turn.</p>
+    </section>
+  </div>
+
+  <div class="panel" data-panel="lectura" hidden>
+    <header>
+      <div class="eyebrow">GG no permite HUD externo</div>
+      <h1>Leer sin HUD</h1>
+      <p class="lede">Tus umbrales eran para un HUD. En GG usa lo que ves en la mesa, el Smart HUD básico y tus notas en PokerCraft. La señal cambia; la respuesta es la misma.</p>
+    </header>
+    <div class="tbl"><table>
+      <thead><tr><th>Lo que ves en la mesa</th><th>Tu nota (con HUD)</th><th>Qué haces</th></tr></thead>
+      <tbody>
+        <tr><td>Abandona muchos botes al primer c-bet</td><td>Fold to flop c-bet &gt; 60%</td><td>C-bet de farol</td></tr>
+        <tr><td>Apuesta el flop casi siempre, pero se rinde en el turn</td><td>C-bet flop &gt; 70% y turn &lt; 40%</td><td>Flota el flop, roba el turn</td></tr>
+        <tr><td>Paga el flop y se tira en el turn</td><td>Fold to turn c-bet &gt; 50%</td><td>Doble barril de farol</td></tr>
+        <tr><td>Se rinde cuando le subes el c-bet</td><td>Fold to raise after c-bet &gt; 55%</td><td>Raise de farol</td></tr>
+        <tr><td>Casi nunca te hace check-raise</td><td>Check-raise &lt; 5%</td><td>Apuesta sin miedo. Si un día sube, créele</td></tr>
+        <tr><td>Te hace check-raise seguido</td><td>Check-raise &gt; 10%</td><td>Cuidado apostando manos débiles: sus raises son más ligeros</td></tr>
+        <tr><td>No pelea botes chicos</td><td>WWSF &lt; 45%</td><td>Roba botes chicos</td></tr>
+        <tr><td>Pelea todo</td><td>WWSF &gt; 50%</td><td>Menos farol, más valor</td></tr>
+        <tr><td>Casi nunca llega al showdown</td><td>WTSD &lt; 25%</td><td>Farolea</td></tr>
+        <tr><td>Enseña basura en el showdown</td><td>WSD &lt; 45%</td><td>Value bet fino, cero faroles</td></tr>
+        <tr><td>Cuando llega al showdown casi siempre gana</td><td>WSD &gt; 55%</td><td>No le farolees; sus apuestas son fuertes</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note" style="margin-top:8px">En GG: deja una nota rápida en PokerCraft cada vez que alguien enseñe una mano rara. En NL2 la mayoría de la mesa cae en "llega con basura al showdown".</p>
+  </div>
+
+  <div class="panel" data-panel="aof" hidden>
+    <header>
+      <div class="eyebrow">All-in or Fold · 10bb · $0.05/$0.10</div>
+      <h1>All-in or Fold</h1>
+      <p class="lede">Todos se sientan con 10 ciegas grandes ($1). En cada mano solo hay dos botones: all-in o fold. No hay postflop.</p>
+    </header>
+    <section>
+      <h2>Ir all-in primero</h2>
+      <p class="note" style="margin-bottom:12px">Todos foldearon antes que tú. Si tu mano está en tu fila, all-in; si no, fold.</p>
+      <div class="fcards">
+        <article class="fcard"><header><h3><i style="background:var(--t1)"></i>UTG</h3><span class="pc">~25%</span></header><dl><dt>All-in</dt><dd>22+, A2s+, A7o+, A5o, K9s+, KTo+, Q9s+, QJo, J8s+, T8s+, 98s, 87s</dd></dl></article>
+        <article class="fcard"><header><h3><i style="background:var(--t2)"></i>HJ</h3><span class="pc">~30%</span></header><dl><dt>All-in</dt><dd>22+, A2s+, A3o+, K6s+, KTo+, Q9s+, QTo+, J8s+, JTo, T8s+, 98s, 87s</dd></dl></article>
+        <article class="fcard"><header><h3><i style="background:var(--t3)"></i>CO</h3><span class="pc">~34%</span></header><dl><dt>All-in</dt><dd>22+, cualquier As, K4s+, K9o+, Q8s+, QTo+, J8s+, JTo, T7s+, 97s+, 86s+, 76s, 65s</dd></dl></article>
+        <article class="fcard"><header><h3><i style="background:var(--t5)"></i>BTN</h3><span class="pc">~44%</span></header><dl><dt>All-in</dt><dd>22+, cualquier As, K2s+, K5o+, Q5s+, Q9o+, J7s+, J9o+, T6s+, T9o, 96s+, 86s+, 75s+, 65s, 54s</dd></dl></article>
+        <article class="fcard"><header><h3><i style="background:var(--t4)"></i>SB</h3><span class="pc">~69%</span></header><dl><dt>All-in</dt><dd>22+, cualquier As, K, Q · J2s+, J5o+, T2s+, T7o+, 95s+, 97o+, 84s+, 86o+, 74s+, 76o, 63s+, 53s+, 43s</dd></dl></article>
+      </div>
+    </section>
+    <section>
+      <h2>Pagar un all-in</h2>
+      <p class="note" style="margin-bottom:12px">Estos rangos son contra un all-in desde una posición temprana (UTG o HJ). Si el all-in viene del CO, BTN o SB, puedes pagar un poco más amplio.</p>
+      <div class="fcards">
+        <article class="fcard"><header><h3>Tú en HJ, CO o BTN</h3></header><dl><dt>Call</dt><dd>55+ a 66+, A9s+, ATo+ (AJo+ si estás en HJ), KQs</dd></dl></article>
+        <article class="fcard"><header><h3>Tú en SB</h3></header><dl><dt>Call</dt><dd>44+, A7s+, ATo+, KJs+, KQo</dd></dl></article>
+        <article class="fcard"><header><h3>Tú en BB</h3><span class="pc">ya pusiste 1bb</span></header><dl><dt>Call</dt><dd>33+, A2s+, A7o+, KTs+, KJo+, QTs+, JTs</dd></dl></article>
+      </div>
+    </section>
+    <ul class="rules">
+      <li><span class="n">!</span><span>Ir all-in primero gana más que pagar: tus rangos de empuje son mucho más amplios que los de call.</span></li>
+      <li><span class="n">!</span><span>Contra un jugador que empuja casi todo, paga más amplio. Contra uno que casi nunca empuja, aprieta.</span></li>
+      <li><span class="n">!</span><span>Juégalo para usar los tickets y cumplir los retos del bono. Tu plan sigue siendo NL2 cash.</span></li>
+    </ul>
+    <p class="note">Adaptado de los charts push/fold de Poker Skill (9-max, 10bb, sin antes) a las 6 posiciones de AoF. Son aproximados; GG AoF puede tener ante, que hace el empuje un poco más rentable.</p>
+  </div>
+</div>
+
+<script>
+const R="AKQJT98765432";
+const SEATS=[
+  {id:"UTG",pct:"14.3%",r:"22+, ATs+, A5s-A2s, KTs+, QTs+, JTs, T9s, 98s, AJo+, KQo"},
+  {id:"HJ",pct:"18.9%",r:"22+, A2s+, K9s+, Q9s+, J9s+, T8s+, 98s, 87s, ATo+, KJo+"},
+  {id:"CO",pct:"25.5%",r:"22+, A2s+, K5s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, 54s, A8o+, KTo+, QJo"},
+  {id:"SB",pct:"33.0%",r:"22+, A2s+, K4s+, Q6s+, J7s+, T7s+, 96s+, 86s+, 76s, 65s, 54s, A5o+, K9o+, QTo+, JTo"},
+  {id:"BTN",pct:"43.3%",r:"22+, A2s+, K2s+, Q4s+, J6s+, T6s+, 95s+, 85s+, 75s+, 64s+, 54s, A2o+, K8o+, Q9o+, J9o+, T9o, 98o"}
+];
+const name=(i,j)=>i===j?R[i]+R[j]:i<j?R[i]+R[j]+"s":R[j]+R[i]+"o";
+function parse(str){
+  const s=new Set();
+  for(let t of str.split(",").map(x=>x.trim())){
+    if(/^(.)\1\+$/.test(t)){const k=R.indexOf(t[0]);for(let i=0;i<=k;i++)s.add(R[i]+R[i]);continue}
+    if(/^(.)\1$/.test(t)){s.add(t);continue}
+    {const pm=t.match(/^(.)\1-(.)\2$/);if(pm){const a=R.indexOf(pm[1]),b=R.indexOf(pm[2]);for(let k=Math.min(a,b);k<=Math.max(a,b);k++)s.add(R[k]+R[k]);continue}}
+    if(/^(.)(.)$/.test(t)&&t[0]!==t[1]){s.add(t+"s");s.add(t+"o");continue}
+    {const bm=t.match(/^(.)(.)\+$/);if(bm&&bm[1]!==bm[2]){const hi=R.indexOf(bm[1]),lo=R.indexOf(bm[2]);for(let k=hi+1;k<=lo;k++){s.add(bm[1]+R[k]+"s");s.add(bm[1]+R[k]+"o")}continue}}
+    let m=t.match(/^(.)(.)([so])-(.)(.)([so])$/);
+    if(m){const a=R.indexOf(m[2]),b=R.indexOf(m[5]);for(let k=Math.min(a,b);k<=Math.max(a,b);k++)s.add(m[1]+R[k]+m[3]);continue}
+    m=t.match(/^(.)(.)([so])(\+?)$/);
+    if(m){const hi=R.indexOf(m[1]),lo=R.indexOf(m[2]);
+      if(m[4]){for(let k=hi+1;k<=lo;k++)s.add(m[1]+R[k]+m[3])}else s.add(t);continue}
+  }
+  return s;
+}
+SEATS.forEach(x=>x.set=parse(x.r));
+
+// Reusable nested-range matrix. "Todos" paints each hand by the first tier that plays it;
+// picking a tier shows only that decision: action color vs fold grey.
+function makeMatrix(o){
+  const tiers=o.tiers, tierOf=h=>{for(let k=0;k<tiers.length;k++)if(tiers[k].set.has(h))return k+1;return 0};
+  let mode="ALL";try{const v=localStorage.getItem(o.key);if(v)mode=v}catch(e){}
+  const grid=document.getElementById(o.grid),info=document.getElementById(o.info),lg=document.getElementById(o.legend);
+  const cells=[];
+  for(let i=0;i<13;i++)for(let j=0;j<13;j++){
+    const h=name(i,j),t=tierOf(h);
+    const b=document.createElement("button");b.className="cell";b.type="button";b.textContent=h;b.dataset.t=t;b.setAttribute("aria-label",h);
+    b.addEventListener("click",()=>{cells.forEach(c=>c.classList.remove("sel"));b.classList.add("sel");info.innerHTML=o.say(h,t)});
+    grid.appendChild(b);cells.push(b);
+  }
+  const seatsEl=document.getElementById(o.seats);
+  const opts=[{id:"ALL",label:o.allLabel}].concat(tiers.map((s,k)=>({id:s.id,label:s.label||s.id,pct:s.pct,t:k+1})));
+  const btns=opts.map(op=>{
+    const b=document.createElement("button");b.className="seat";b.type="button";
+    b.innerHTML=(op.t?`<span class="sw" style="background:var(${o.c(op.t)})"></span>`:"")+op.label+(op.pct?` <span class="pct">${op.pct}</span>`:"");
+    b.addEventListener("click",()=>{mode=op.id;try{localStorage.setItem(o.key,mode)}catch(e){}apply()});
+    seatsEl.appendChild(b);return {b,op};
+  });
+  function apply(){
+    btns.forEach(({b,op})=>b.setAttribute("aria-pressed",String(op.id===mode)));
+    const k=tiers.findIndex(s=>s.id===mode);
+    cells.forEach(c=>{
+      const t=+c.dataset.t;
+      if(k<0){c.style.background=t?`var(${o.c(t)})`:"var(--t0)";c.style.color=t?`var(${o.c(t)}f)`:"var(--t0f)"}
+      else{const on=t>0&&t<=k+1;c.style.background=on?"var(--go)":"var(--t0)";c.style.color=on?"var(--gof)":"var(--t0f)"}
+    });
+    lg.innerHTML=k<0
+      ? tiers.map((s,i)=>`<span><i style="background:var(${o.c(i+1)})"></i>${o.tierLegend(s)}</span>`).join("")+`<span><i style="background:var(--t0);border:1px solid var(--line)"></i>fold</span>`
+      : `<span><i style="background:var(--go)"></i>${o.actLabel} (${tiers[k].label||tiers[k].id})</span><span><i style="background:var(--t0);border:1px solid var(--line)"></i>fold</span>`;
+  }
+  apply();
+}
+makeMatrix({grid:"grid",info:"info",seats:"seats",legend:"legend",key:"seatMode",allLabel:"Todos",tiers:SEATS,
+  c:t=>`--t${t}`,actLabel:"Abrir",tierLegend:s=>`desde ${s.id}`,
+  say:(h,t)=>t?`<b>${h}</b> se abre desde ${SEATS[t-1].id}${t<5?" en adelante":" (solo botón)"}.`:`<b>${h}</b>: fold desde cualquier asiento.`});
+
+// ---- 3-bet / call / fold by hero position ----
+const SPOTS={
+ SB:{label:"SB",size:"4× el open",note:"Desde la SB nunca pagas: quedas fuera de posición y la BB todavía puede subir.",vs:{
+  "UTG/HJ":{t:"QQ+, AK",c:""},
+  "CO":{t:"TT+, AQ, AJs, KQs, A5s, A4s",c:""},
+  "BTN":{t:"99+, AT+, AJo, KJs+, QJs, KQo, A5s-A2s",c:""}}},
+ BB:{label:"BB",size:"4× el open",note:"Ya pusiste 1bb y cierras la acción: puedes pagar amplio. Más amplio entre más tarde abrió.",vs:{
+  "UTG/HJ":{t:"QQ+, AK",c:"22-JJ, AQo, AJs, ATs, A5s-A2s, KQs, KJs, QJs, JTs, T9s, 98s, 87s, 76s"},
+  "CO":{t:"JJ+, AK, AQs, A5s, A4s",c:"22-TT, AQo, AJs-A6s, A3s, A2s, AJo, ATo, KQ, KJs-K9s, KJo, QJs-Q9s, QJo, JTs-J9s, T9s, T8s, 98s, 97s, 87s, 76s, 65s, 54s"},
+  "BTN/SB":{t:"TT+, AQ+, AJs, KQs, A5s, A4s",c:"22-99, AJo-A8o, ATs-A6s, A3s, A2s, KJs-K7s, KQo-KTo, QJs-Q8s, QJo, QTo, JTs-J8s, JTo, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 54s"}}},
+ BTN:{label:"BTN",size:"3× el open",note:"Con posición sí puedes pagar: juegas con ventaja todo el postflop.",vs:{
+  "UTG/HJ":{t:"QQ+, AK",c:"22-JJ, AQ, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, 87s"},
+  "CO":{t:"JJ+, AK, AQ, A5s, A4s",c:"22-TT, AJs-A6s, A3s, A2s, AJo, KQ, KJs, KTs, K9s, KJo, QJs, QTs, Q9s, QJo, JTs, J9s, T9s, T8s, 98s, 87s, 76s, 65s"}}},
+ "CO/HJ":{label:"CO/HJ",size:"3× el open",note:"Todavía hablan BTN y ciegas detrás de ti: paga poco o te van a hacer squeeze.",vs:{
+  "UTG":{t:"QQ+, AK",c:"22-JJ, AQs"},
+  "HJ (tú en CO)":{t:"JJ+, AK, AQs",c:"22-TT, AQo, AJs, KQs"}}}
+};
+for(const p in SPOTS)for(const v in SPOTS[p].vs){const x=SPOTS[p].vs[v];x.T=parse(x.t);x.C=x.c?parse(x.c):new Set()}
+const combosOf=h=>h.length===2?6:h[2]==="s"?4:12;
+let heroP="SB",villP=null;
+try{const a=localStorage.getItem("tbHero"),b=localStorage.getItem("tbVill");if(a&&SPOTS[a])heroP=a;if(b)villP=b}catch(e){}
+const g3=document.getElementById("grid3"),i3=document.getElementById("info3"),l3=document.getElementById("legend3");
+const cells3=[];
+for(let i=0;i<13;i++)for(let j=0;j<13;j++){const h=name(i,j);const b=document.createElement("button");b.className="cell";b.type="button";b.textContent=h;b.setAttribute("aria-label",h);
+  b.addEventListener("click",()=>{cells3.forEach(c=>c.classList.remove("sel"));b.classList.add("sel");const x=SPOTS[heroP].vs[villP];
+   const a=x.T.has(h)?"3-bet":x.C.has(h)?"call":"fold";i3.innerHTML=`<b>${h}</b> en ${heroP} contra open de ${villP}: <b>${a}</b>.`});
+  g3.appendChild(b);cells3.push(b)}
+function chips(id,list,cur,onPick){const el=document.getElementById(id);el.innerHTML="";list.forEach(k=>{const b=document.createElement("button");b.className="seat";b.type="button";b.textContent=k;b.setAttribute("aria-pressed",String(k===cur));b.addEventListener("click",()=>onPick(k));el.appendChild(b)})}
+function render3(){
+  const vs=Object.keys(SPOTS[heroP].vs);if(!vs.includes(villP))villP=vs[0];
+  try{localStorage.setItem("tbHero",heroP);localStorage.setItem("tbVill",villP)}catch(e){}
+  chips("heroPos",Object.keys(SPOTS),heroP,k=>{heroP=k;render3()});
+  chips("villPos",vs,villP,k=>{villP=k;render3()});
+  const x=SPOTS[heroP].vs[villP];let ct=0,cc=0;
+  cells3.forEach(c=>{const h=c.textContent;c.classList.remove("sel");
+    if(x.T.has(h)){c.style.background="var(--b1)";c.style.color="var(--b1f)";ct+=combosOf(h)}
+    else if(x.C.has(h)){c.style.background="var(--go)";c.style.color="var(--gof)";cc+=combosOf(h)}
+    else{c.style.background="var(--t0)";c.style.color="var(--t0f)"}});
+  i3.textContent="Toca una mano.";
+  const pc=n=>(n/1326*100).toFixed(1)+"%";
+  l3.innerHTML=`<span><i style="background:var(--b1)"></i>3-bet ${pc(ct)}</span><span><i style="background:var(--go)"></i>call ${pc(cc)}</span><span><i style="background:var(--t0);border:1px solid var(--line)"></i>fold</span>`;
+  document.getElementById("spotCard").innerHTML=`<article class="fcard"><header><h3><i style="background:var(--b1)"></i>${heroP} contra ${villP}</h3><span class="pc">3-bet a ${SPOTS[heroP].size}</span></header><dl><dt>3-bet</dt><dd>${x.t}</dd><dt>Call</dt><dd>${x.c||"Nada: 3-bet o fold"}</dd></dl><p class="note" style="margin:0">${SPOTS[heroP].note}</p></article>`;
+}
+render3();
+
+// ---- Claves ----
+const TIPS=[
+ ["Apuesta tus manos buenas, y más grande","En NL2–NL10 la gente paga de más. Con top pair buena o mejor, apuesta 50–75% en cada calle. No hagas slowplay: con un full en el turn, apuesta o sube.","Tus manos: 44 (full en el turn, solo pagaste) y AJ (75% en river y tiró KQ)."],
+ ["Créele a los raises","Un raise en turn o river de un desconocido casi siempre es la mano. Con una pareja, fold. Los fish casi nunca farolean con raise.","Tu mano: 88 en J-J-8-J, all-in después del check-raise contra póker."],
+ ["Farolea poco, sobre todo en el river","Tus faroles fallan porque aquí pagan. Farolea solo contra jugadores que ya viste tirarse, y en boards que te dan credibilidad.","Tus manos: AJs farol en river contra 88, y 33 apostando el river contra AJ."],
+ ["Disciplina preflop","UTG y HJ: solo el chart. SB: 3-bet o fold. En el resto, revisa la pestaña 3-bet. Así evitas la mitad de los botes que pierdes.","Sesión 1: abriste 42% en UTG. Sesión 2: 25%. La meta es 14%."],
+ ["Multiway sin pareja = fold","Si hay apuesta y call antes que tú y no tienes pareja ni proyecto fuerte, suelta la mano. Mientras más jugadores, más fuerte debe ser tu mano.","Tu mano: AJs squeeze pagando flop 3-way y all-in con proyecto."],
+ ["3-bet por valor más amplio contra opens tardíos","Contra CO, BTN y SB, haz 3-bet con JJ, TT, AQ y AJs. Los fish te pagan con peores manos.","Tu 3-bet bajó a 5.6%. La meta es 6–9%."],
+ ["Aísla a los limpers","Si alguien solo pagó la ciega, sube a 4bb + 1bb por limper con tu rango del CO. Los limpers son los jugadores más débiles de la mesa.",""],
+ ["Haz la cuenta antes de pagar un all-in","Divide lo que pagas entre el bote final. Si tu equity es menor, fold. Un proyecto de color contra all-in más call casi nunca alcanza.","Tu mano: AJs, necesitabas 26% y tenías 17%."],
+ ["Elige la mesa","Siéntate en mesas con VPIP de 35% o más y, si puedes, a la izquierda del jugador loose. Una buena mesa vale más que cualquier ajuste técnico.",""],
+ ["Juega el límite que tu bankroll aguanta","50 buy-ins: NL2 con $100, NL5 con $250, NL10 con $500. Stop-loss de 3 buy-ins por sesión. Subir antes de tiempo es la forma más rápida de perderlo todo.","Ahora: ~$120. Te toca NL2."]
+];
+document.getElementById("tips").innerHTML=TIPS.map(([t,d,e],i)=>`<li class="tip"><span class="tn">${i+1}</span><div><h3>${t}</h3><p>${d}</p>${e?`<p class="ev">${e}</p>`:""}</div></li>`).join("");
+
+const FR=[
+  ["UTG",{"K suited":"KTs+","Q suited":"QTs+","J suited":"JTs","T suited":"T9s","Conectores":"98s","A offsuit":"AJo+","K offsuit":"KQo","Otros offsuit":"—"}],
+  ["HJ",{"K suited":"K9s+","Q suited":"Q9s+","J suited":"J9s+","T suited":"T8s+","Conectores":"98s, 87s","A offsuit":"ATo+","K offsuit":"KJo+","Otros offsuit":"—"}],
+  ["CO",{"K suited":"K5s+","Q suited":"Q8s+","J suited":"J8s+","T suited":"T8s+","Conectores":"97s+, 87s, 76s, 65s, 54s","A offsuit":"A8o+","K offsuit":"KTo+","Otros offsuit":"QJo"}],
+  ["SB",{"K suited":"K4s+","Q suited":"Q6s+","J suited":"J7s+","T suited":"T7s+","Conectores":"96s+, 86s+, 76s, 65s, 54s","A offsuit":"A5o+","K offsuit":"K9o+","Otros offsuit":"QTo+, JTo"}],
+  ["BTN",{"K suited":"K2s+","Q suited":"Q4s+","J suited":"J6s+","T suited":"T6s+","Conectores":"95s+, 85s+, 75s+, 64s+, 54s","A offsuit":"A2o+","K offsuit":"K8o+","Otros offsuit":"Q9o+, J9o+, T9o, 98o"}]
+];
+document.getElementById("fcards").innerHTML=FR.map(([s,rows],k)=>`<article class="fcard"><header><h3><i style="background:var(--t${k+1})"></i>${s}</h3><span class="pc">${SEATS[k].pct} · ${s==="SB"?"open 3bb":"open 2.5bb"}</span></header><dl>${Object.entries(rows).map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl></article>`).join("");
+
+// Mates
+const pct=x=>(Math.round(x*1000)/10).toFixed(1)+"%";
+document.getElementById("potodds").innerHTML=[[0.2,"20%"],[0.25,"25%"],[1/3,"33%"],[0.4,"40%"],[0.5,"50%"],[0.66,"66%"],[0.75,"75%"],[1,"100%"],[1.5,"150%"],[2,"200%"]]
+  .map(([b,l])=>`<tr><td>${l}</td><td>${pct(b/(1+2*b))}</td></tr>`).join("");
+let orows="";
+for(let o=1;o<=15;o++){orows+=`<tr><td>${o}</td><td>${pct(o/47)}</td><td>${pct(o/46)}</td><td>${pct(1-(47-o)*(46-o)/(47*46))}</td></tr>`}
+document.getElementById("outs").innerHTML=orows;
+
+// Tabs
+const tabBtns=[...document.querySelectorAll(".tabs button")],panels=[...document.querySelectorAll(".panel")];
+function showTab(id,save){
+  if(!panels.some(p=>p.dataset.panel===id))id="preflop";
+  tabBtns.forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===id)));
+  panels.forEach(p=>p.hidden=p.dataset.panel!==id);
+  if(save){try{localStorage.setItem("tab",id)}catch(e){}}
+}
+tabBtns.forEach(b=>b.addEventListener("click",()=>{showTab(b.dataset.tab,true);window.scrollTo({top:0})}));
+let startTab=(location.hash||"").slice(1);
+if(!startTab){try{startTab=localStorage.getItem("tab")||""}catch(e){}}
+showTab(startTab||"preflop",false);
+
+</script>
+
+</body>
+</html>
