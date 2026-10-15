@@ -36,7 +36,7 @@ h1 em{font-style:normal;color:var(--gold)}
 .group h2{margin:6px 0 0;font:800 13px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .drill{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer}
 .drill:hover,.drill:focus-visible{border-color:var(--gold);outline:none}
-.drill .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font:800 13px var(--mono);background:var(--panel2);color:var(--gold)}
+.drill .ico{width:44px;height:44px;text-align:center;line-height:1.05;font-size:11px!important;border-radius:12px;display:grid;place-items:center;font:800 13px var(--mono);background:var(--panel2);color:var(--gold)}
 .drill b{display:block;font-weight:800;font-stretch:88%;font-size:17px}
 .drill small{color:var(--muted);font-size:12px}
 .stars{font-size:16px;letter-spacing:2px;color:#3a4741;white-space:nowrap}
@@ -91,7 +91,8 @@ h1 em{font-style:normal;color:var(--gold)}
 .btn.fold{background:#3a4641;color:#e6ece9}
 .btn.open{background:var(--open);color:var(--openf)}
 .btn.call{background:var(--call);color:var(--callf)}
-.btn.three{background:var(--three);color:var(--threef)}
+.btn.three,.btn.four{background:var(--three);color:var(--threef)}
+.mx span.na{opacity:.35}
 .btn:disabled{opacity:.5;cursor:default}
 
 /* FEEDBACK */
@@ -224,7 +225,10 @@ const DRILLS=[
  {id:"vs-BB",g:"Contra un open",kind:"vs",pos:["BB"],t:"Defensa de BB",d:"Paga amplio, 3-bet por valor"},
  {id:"vs-BTN",g:"Contra un open",kind:"vs",pos:["BTN"],t:"BTN con posición",d:"Call y 3-bet"},
  {id:"vs-COHJ",g:"Contra un open",kind:"vs",pos:["CO","HJ"],t:"CO / HJ",d:"Poco call, cuidado con el squeeze"},
- {id:"vs-MIX",g:"Contra un open",kind:"vs",pos:["SB","BB","BTN","CO","HJ"],t:"Mezcla total",d:"Todas las situaciones"}
+ {id:"vs-MIX",g:"Contra un open",kind:"vs",pos:["SB","BB","BTN","CO","HJ"],t:"Mezcla total",d:"Todas las situaciones"},
+ {id:"v3-IP",g:"Te hacen 3-bet (abriste tú)",kind:"v3",ip:true,pos:["UTG","HJ","CO","BTN"],t:"Te resuben las ciegas",d:"Tienes posición · puedes pagar más"},
+ {id:"v3-OOP",g:"Te hacen 3-bet (abriste tú)",kind:"v3",ip:false,pos:["UTG","HJ","CO","SB"],t:"Te resuben con posición",d:"Sin posición · casi todo es fold"},
+ {id:"v3-MIX",g:"Te hacen 3-bet (abriste tú)",kind:"v3",pos:["UTG","HJ","CO","BTN","SB"],t:"Mezcla 3-bet",d:"Con y sin posición"}
 ];
 const ORDER=["UTG","HJ","CO","BTN","SB","BB"];
 
@@ -237,9 +241,21 @@ let meta=store.get("meta",{xp:0,best:0,days:[]});
 function stars(id){const h=(prog[id]||{}).hist||[];if(h.length<20)return 0;const a=h.slice(-20).reduce((x,y)=>x+y,0)/20;return a>=.95?3:a>=.85?2:a>=.7?1:0}
 function acc(id){const h=(prog[id]||{}).hist||[];if(!h.length)return null;const l=h.slice(-20);return Math.round(100*l.reduce((x,y)=>x+y,0)/l.length)}
 
+// Facing a 3-bet after opening
+const V3={four:parse("QQ+, AK"),ipCall:parse("JJ-22, AQs, AQo, AJs, KQs, JTs, T9s"),oopCall:parse("JJ, TT, AQs"),
+  fourTxt:"QQ+, AK",ipTxt:"JJ–22, AQ, AJs, KQs, JTs, T9s",oopTxt:"JJ, TT, AQs"};
 // Spot model
 function spotFor(dr){
   const pos=dr.pos[Math.floor(Math.random()*dr.pos.length)];
+  if(dr.kind==="v3"){
+    const after=ORDER.slice(ORDER.indexOf(pos)+1);
+    let opts=after.filter(v=>{const ip=(v==="SB"||v==="BB")&&pos!=="SB";return dr.ip===undefined||dr.ip===ip});
+    if(!opts.length)opts=after;
+    const v=opts[Math.floor(Math.random()*opts.length)];const ip=(v==="SB"||v==="BB")&&pos!=="SB";
+    const pool=RFIset[pos];const C=ip?V3.ipCall:V3.oopCall;
+    return {kind:"v3",pos,vs:v,ip,pool,action:h=>V3.four.has(h)?"four":C.has(h)?"call":"fold",key:"v3|"+pos+"|"+v,
+      x:{t:V3.fourTxt,c:ip?V3.ipTxt:V3.oopTxt}};
+  }
   if(dr.kind==="rfi"){return {kind:"rfi",pos,action:h=>RFIset[pos].has(h)?"open":"fold",key:"rfi|"+pos}}
   const vsList=Object.keys(VS[pos].vs);const v=vsList[Math.floor(Math.random()*vsList.length)];const x=VS[pos].vs[v];
   return {kind:"vs",pos,vs:v,action:h=>x.T.has(h)?"three":x.C.has(h)?"call":"fold",key:"vs|"+pos+"|"+v,x};
@@ -250,7 +266,7 @@ const frontierCache={};
 function frontier(sp){
   if(frontierCache[sp.key])return frontierCache[sp.key];
   const A={};ALL.forEach(c=>A[c.i+","+c.j]=sp.action(c.h));
-  const f=ALL.filter(c=>[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{const k=(c.i+a)+","+(c.j+b);return k in A&&A[k]!==A[c.i+","+c.j]})).map(c=>c.h);
+  const f=ALL.filter(c=>(!sp.pool||sp.pool.has(c.h))&&[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{const k=(c.i+a)+","+(c.j+b);return k in A&&A[k]!==A[c.i+","+c.j]})).map(c=>c.h);
   return frontierCache[sp.key]=f;
 }
 function pickHand(sp){
@@ -263,7 +279,8 @@ function pickHand(sp){
     const w=f.map(h=>4-Math.min(3,boxes[sp.key+"|"+h]||0));let tot=w.reduce((a,b)=>a+b,0),x=Math.random()*tot;
     for(let k=0;k<f.length;k++){x-=w[k];if(x<=0)return f[k]}return f[f.length-1]}
   // random by real frequency
-  let x=Math.random()*1326;for(const c of ALL){x-=combos(c.h);if(x<=0)return c.h}return "AA";
+  const cand=sp.pool?ALL.filter(c=>sp.pool.has(c.h)):ALL;const tot=cand.reduce((a,c)=>a+combos(c.h),0);
+  let x=Math.random()*tot;for(const c of cand){x-=combos(c.h);if(x<=0)return c.h}return "AA";
 }
 const SUITS=["s","h","d","c"],SYM={s:"♠",h:"♥",d:"♦",c:"♣"};
 function dealCards(h){
@@ -285,7 +302,7 @@ function renderHome(){
   const groups={};DRILLS.forEach(d=>(groups[d.g]=groups[d.g]||[]).push(d));
   let html=`<button class="drill rush" type="button" data-rush="1"><span class="ico">60s</span><span><b>Rush de 60 segundos</b><small>Aperturas mezcladas · contesta todas las que puedas</small></span><span class="pill" style="border-color:#5c4511;color:#ffe29a">🏆 ${meta.best||0}</span></button>`;
   for(const g in groups){html+=`<h2>${g}</h2>`;html+=groups[g].map((d,i)=>{const st=stars(d.id),a=acc(d.id);
-    return `<button class="drill" type="button" data-id="${d.id}"><span class="ico">${d.pos.length>2?"MIX":d.pos.join("/")}</span><span><b>${d.t}</b><small>${d.d}${a!==null?` · ${a}% últimas 20`:""}</small><div class="bar"><i style="width:${a??0}%"></i></div></span><span class="stars">${[1,2,3].map(k=>`<i class="${k<=st?"on":""}">★</i>`).join("")}</span></button>`}).join("")}
+    return `<button class="drill" type="button" data-id="${d.id}"><span class="ico">${d.kind==="v3"?(d.id==="v3-MIX"?"3B·MIX":"3B·"+(d.ip?"IP":"OOP")):d.pos.length>2?"MIX":d.pos.join("/")}</span><span><b>${d.t}</b><small>${d.d}${a!==null?` · ${a}% últimas 20`:""}</small><div class="bar"><i style="width:${a??0}%"></i></div></span><span class="stars">${[1,2,3].map(k=>`<i class="${k<=st?"on":""}">★</i>`).join("")}</span></button>`}).join("")}
   $("groups").innerHTML=html;
   $("groups").querySelectorAll(".drill").forEach(b=>b.addEventListener("click",()=>b.dataset.rush?startRush():start(DRILLS.find(d=>d.id===b.dataset.id))));
 }
@@ -308,17 +325,21 @@ function seatsHTML(sp){
     let cls="seat",act="";
     if(p===sp.pos)cls+=" hero";
     else if(sp.kind==="vs"&&p===sp.vs){cls+=" opener";act=`<span class="act">abre 2.5bb</span>`}
+    else if(sp.kind==="v3"&&p===sp.vs){cls+=" opener";act=`<span class="act">3-bet ${sp.ip?"10bb":"7.5bb"}</span>`}
+    else if(sp.kind==="v3"){cls+=" out";act=`<span class="act">fold</span>`}
     else{const before=ORDER.indexOf(p)<ORDER.indexOf(sp.pos);
       if(sp.kind==="rfi"&&before){cls+=" out";act=`<span class="act">fold</span>`}
       if(sp.kind==="vs"&&ORDER.indexOf(p)<ORDER.indexOf(sp.pos)&&p!==sp.vs){cls+=" out";act=`<span class="act">fold</span>`}}
+    if(sp.kind==="v3"&&p===sp.pos)act=`<span class="act">abriste 2.5bb</span>`;
     out+=`<div class="${cls}" style="left:${x}%;top:${y}%"><span class="p">${p===sp.pos?"TÚ · "+p:p}</span>${act}</div>`;
     if(p==="BTN")out+=`<div class="dealer" style="left:${x+(x<50?9:x>50?-9:8)}%;top:${y+(y>50?-16:16)}%">D</div>`;
   }
-  const q=sp.kind==="rfi"?"Todos foldearon":`${sp.vs} abrió`;
-  const s=sp.kind==="rfi"?(sp.pos==="SB"?"¿Subes a 3bb o fold?":"¿Abres a 2.5bb o fold?"):(sp.pos==="SB"?"3-bet o fold":"¿Fold, call o 3-bet?");
+  const q=sp.kind==="rfi"?"Todos foldearon":sp.kind==="v3"?`${sp.vs} te hizo 3-bet`:`${sp.vs} abrió`;
+  const s=sp.kind==="v3"?(sp.ip?"Tienes posición · ¿fold, call o 4-bet?":"Sin posición · ¿fold, call o 4-bet?"):sp.kind==="rfi"?(sp.pos==="SB"?"¿Subes a 3bb o fold?":"¿Abres a 2.5bb o fold?"):(sp.pos==="SB"?"3-bet o fold":"¿Fold, call o 3-bet?");
   return out+`<div class="center"><div class="q">${q}</div><div class="s">${s}</div></div>`;
 }
 function actionsFor(sp){
+  if(sp.kind==="v3")return [["fold","Fold","F"],["call","Call","C"],["four","4-bet 2.3×","R"]];
   if(sp.kind==="rfi")return [["fold","Fold","F"],["open",sp.pos==="SB"?"Subir 3bb":"Abrir 2.5bb","R"]];
   return [["fold","Fold","F"],["call","Call","C"],["three","3-bet "+VS[sp.pos].size,"R"]];
 }
@@ -326,7 +347,7 @@ function next(){
   closeSheet();locked=false;
   if(rush&&Date.now()>=rush.end)return finish();
   spot=spotFor(drill);hand=pickHand(spot);handNo++;
-  $("pSub").textContent=spot.kind==="rfi"?`Estás en ${spot.pos} · pot sin abrir`:`Estás en ${spot.pos} · abrió ${spot.vs}`;
+  $("pSub").textContent=spot.kind==="v3"?`Abriste desde ${spot.pos} · ${spot.vs} te resubió`:spot.kind==="rfi"?`Estás en ${spot.pos} · pot sin abrir`:`Estás en ${spot.pos} · abrió ${spot.vs}`;
   $("table").innerHTML=seatsHTML(spot);
   const cs=dealCards(hand);
   $("hand").innerHTML=cs.map(([r,s])=>`<div class="pc deal ${s}"><span class="r">${r==="T"?"10":r}</span><span class="su">${SYM[s]}</span></div>`).join("");
@@ -346,7 +367,7 @@ function startTimer(){
     timer=requestAnimationFrame(tick)};
   timer=requestAnimationFrame(tick);
 }
-const NAMES={fold:"Fold",open:"Abrir",call:"Call",three:"3-bet"};
+const NAMES={fold:"Fold",open:"Abrir",call:"Call",three:"3-bet",four:"4-bet"};
 function answer(a){
   if(locked)return;locked=true;if(!rush)cancelAnimationFrame(timer);
   const right=spot.action(hand),ok=a===right,ms=performance.now()-tStart;
@@ -375,15 +396,15 @@ function familyText(sp,h){
   return contiguous?`En ${sp.pos}, ${hi}x ${lab} se abre <b>hasta ${lowest}</b>.`:`En ${sp.pos}, ${hi}x ${lab} que se abren: <b>${ins.join(", ")}</b>.`;
 }
 function matrixHTML(sp,me){
-  const col={open:["var(--open)","var(--openf)"],three:["var(--three)","var(--threef)"],call:["var(--call)","var(--callf)"],fold:["var(--fold)","var(--foldf)"]};
-  return `<div class="mx">${ALL.map(c=>{const a=sp.action(c.h);return `<span class="${c.h===me?"me":""}" style="background:${col[a][0]};color:${col[a][1]}">${c.h}</span>`}).join("")}</div>`;
+  const col={open:["var(--open)","var(--openf)"],three:["var(--three)","var(--threef)"],four:["var(--three)","var(--threef)"],call:["var(--call)","var(--callf)"],fold:["var(--fold)","var(--foldf)"]};
+  return `<div class="mx">${ALL.map(c=>{const a=sp.action(c.h);return `<span class="${c.h===me?"me":""}${sp.pool&&!sp.pool.has(c.h)?" na":""}" style="background:${col[a][0]};color:${col[a][1]}">${c.h}</span>`}).join("")}</div>`;
 }
 function showMiss(a,right){
   const sp=spot;
-  const lg=sp.kind==="rfi"?`<span><i style="background:var(--open)"></i>abrir</span><span><i style="background:var(--fold)"></i>fold</span>`:`<span><i style="background:var(--three)"></i>3-bet</span><span><i style="background:var(--call)"></i>call</span><span><i style="background:var(--fold)"></i>fold</span>`;
-  const extra=sp.kind==="rfi"?familyText(sp,hand):`<b>3-bet:</b> ${sp.x.t}<br><b>Call:</b> ${sp.x.c||"nada — 3-bet o fold"}`;
+  const lg=sp.kind==="v3"?`<span><i style="background:var(--three)"></i>4-bet</span><span><i style="background:var(--call)"></i>call</span><span><i style="background:var(--fold)"></i>fold</span><span><i style="background:var(--fold);opacity:.35"></i>no la abres</span>`:sp.kind==="rfi"?`<span><i style="background:var(--open)"></i>abrir</span><span><i style="background:var(--fold)"></i>fold</span>`:`<span><i style="background:var(--three)"></i>3-bet</span><span><i style="background:var(--call)"></i>call</span><span><i style="background:var(--fold)"></i>fold</span>`;
+  const extra=sp.kind==="v3"?`<b>4-bet:</b> ${sp.x.t}<br><b>Call ${sp.ip?"con":"sin"} posición:</b> ${sp.x.c}<br>Todo lo demás: fold.`:sp.kind==="rfi"?familyText(sp,hand):`<b>3-bet:</b> ${sp.x.t}<br><b>Call:</b> ${sp.x.c||"nada — 3-bet o fold"}`;
   $("sheetIn").innerHTML=`<h3>${a==="timeout"?"Tiempo":"Era "+NAMES[right]}</h3>
-   <p><b>${hand}</b> en ${sp.pos}${sp.vs?" contra open de "+sp.vs:""}: <b>${NAMES[right]}</b>${a!=="timeout"?` (pusiste ${NAMES[a]})`:""}. Va a regresar en unas manos.</p>
+   <p><b>${hand}</b> en ${sp.pos}${sp.vs?(sp.kind==="v3"?" contra 3-bet de "+sp.vs:" contra open de "+sp.vs):""}: <b>${NAMES[right]}</b>${a!=="timeout"?` (pusiste ${NAMES[a]})`:""}. Va a regresar en unas manos.</p>
    <p>${extra}</p>${matrixHTML(sp,hand)}<div class="lg">${lg}<span><i style="outline:2px solid var(--gold)"></i>tu mano</span></div>
    <button class="next" type="button" id="nextBtn">Siguiente (Enter)</button>`;
   $("sheet").hidden=false;$("nextBtn").addEventListener("click",next);$("nextBtn").focus();
@@ -408,8 +429,8 @@ $("quit").addEventListener("click",()=>{session&&session.n?finish():renderHome()
 document.addEventListener("keydown",e=>{
   if(!$("sheet").hidden){if(e.key==="Enter"||e.key===" "){e.preventDefault();next()}return}
   if($("play").hidden||locked)return;const k=e.key.toLowerCase();
-  const map={f:"fold",c:"call",r:spot&&spot.kind==="rfi"?"open":"three"};
-  if(map[k]&&(k!=="c"||spot.kind==="vs")){e.preventDefault();answer(map[k])}
+  const map={f:"fold",c:"call",r:spot&&spot.kind==="rfi"?"open":spot&&spot.kind==="v3"?"four":"three"};
+  if(map[k]&&(k!=="c"||spot.kind!=="rfi")){e.preventDefault();answer(map[k])}
 });
 renderHome();
 </script>
